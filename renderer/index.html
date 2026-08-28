@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>AutoCensor</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>AutoCensor</h1>
+  <nav>
+    <button class="tab active" data-tab="batch">배치 처리</button>
+    <button class="tab" data-tab="preview">미리보기</button>
+    <button class="tab" data-tab="review">검토 / 보정</button>
+    <button class="tab" data-tab="train">파인튜닝</button>
+  </nav>
+</header>
+
+<div id="quickSetupBanner" class="quick-banner hidden">
+  <span>⚡ 필수 검출 모델이 아직 다운로드되지 않았습니다.</span>
+  <button id="btnQuickSetup" class="btn-sm primary">원클릭 전체 모델 다운로드</button>
+</div>
+
+<main>
+  <section id="tab-batch" class="tab-panel active">
+    <div class="row">
+      <label>입력 폴더</label>
+      <input id="inputDir" type="text" placeholder="검열할 이미지가 든 폴더" readonly />
+      <button id="pickInput">선택</button>
+    </div>
+    <div class="row">
+      <label>출력 폴더</label>
+      <input id="outputDir" type="text" placeholder="결과 저장 폴더" readonly />
+      <button id="pickOutput">선택</button>
+    </div>
+    <div class="row inline">
+      <label><input type="checkbox" id="recursive" checked /> 하위 폴더 포함</label>
+      <label><input type="checkbox" id="overwrite" /> 기존 결과 덮어쓰기</label>
+      <label><input type="checkbox" id="copyUnchanged" checked /> 검출 없는 이미지도 복사</label>
+      <label><input type="checkbox" id="saveMasks" checked /> 마스크 저장 (검토·데이터셋용)</label>
+    </div>
+    <div class="row inline">
+      <label>파일명 접미사 <input id="suffix" type="text" value="" placeholder="예: _censored" size="12" /></label>
+      <label>출력 형식
+        <select id="format">
+          <option value="keep">원본 유지</option>
+          <option value="png">PNG</option>
+          <option value="jpg">JPG</option>
+          <option value="webp">WebP</option>
+        </select>
+      </label>
+      <label>품질 <input id="quality" type="number" min="50" max="100" value="95" size="4" /></label>
+    </div>
+
+    <div class="actions">
+      <button id="start" class="primary">배치 시작</button>
+      <button id="cancel" disabled>중지</button>
+      <button id="openOut" disabled>출력 폴더 열기</button>
+    </div>
+
+    <div class="progress"><div id="bar"></div></div>
+    <div id="stat" class="stat">대기 중</div>
+    <div id="log" class="log"></div>
+  </section>
+
+  <section id="tab-preview" class="tab-panel">
+    <div class="row">
+      <button id="pickImage">이미지 선택</button>
+      <span id="previewPath" class="muted"></span>
+      <button id="runPreview" class="primary" disabled>검열 미리보기</button>
+    </div>
+    <div id="previewInfo" class="muted"></div>
+    <div class="preview-grid">
+      <figure><figcaption>원본</figcaption><img id="imgBefore" alt="" /></figure>
+      <figure><figcaption>검열 결과</figcaption><img id="imgAfter" alt="" /></figure>
+    </div>
+  </section>
+  <section id="tab-review" class="tab-panel">
+    <div class="row">
+      <label>결과 폴더</label>
+      <input id="reviewDir" type="text" placeholder="배치 결과가 있는 폴더" readonly />
+      <button id="pickReview">선택</button>
+      <button id="reloadReview">불러오기</button>
+    </div>
+    <div class="row inline">
+      <label>필터
+        <select id="reviewFilter">
+          <option value="all">전체</option>
+          <option value="censored">검열됨</option>
+          <option value="clean">검출 없음</option>
+          <option value="corrected">보정됨</option>
+        </select>
+      </label>
+      <label>썸네일 <input id="thumbSize" type="range" min="120" max="420" value="220" /></label>
+      <span id="reviewStat" class="muted"></span>
+    </div>
+    <div id="grid" class="grid"></div>
+  </section>
+
+  <section id="tab-train" class="tab-panel">
+    <div id="pyStatus" class="notice">Python 확인 중...</div>
+
+    <div class="notice ok" style="background:#131b26; border-color:#2b4a7a; color:#bcd4f7; line-height: 1.6;">
+      💡 <b>내 그림체 맞춤 학습 (간편 2단계)</b><br />
+      1. [검토/보정] 탭에서 보정한 데이터셋 폴더를 확인하세요.<br />
+      2. <b>[학습 시작]</b>을 누르면 자동으로 최적화 학습되어 사이드바에 새 모델이 등록됩니다.
+    </div>
+
+    <div class="row">
+      <label>데이터셋</label>
+      <input id="trainDataset" type="text" placeholder="사이드바에서 지정한 데이터셋 폴더" readonly />
+      <button id="useDatasetDir">사이드바 값 사용</button>
+      <span id="trainDatasetStat" class="muted"></span>
+    </div>
+
+    <div class="row">
+      <label>베이스</label>
+      <select id="trainBase">
+        <option value="anime_medium" selected>anime-medium (권장 · 1280px 애니 7클래스 기본)</option>
+        <option value="anime_nano">anime-nano (640px · 빠른 학습용)</option>
+        <option value="anime_xl">anime-xl (1280px · 초대형 최고성능)</option>
+        <option value="yolo11n-seg">yolo11n-seg (초경량 YOLO COCO 기본)</option>
+        <option value="yolo11s-seg">yolo11s-seg (표준 YOLO COCO 기본)</option>
+        <option value="__local__">로컬 .pt 직접 선택...</option>
+      </select>
+      <button id="trainDlBase" class="btn-sm" style="display: none;">가중치 다운로드</button>
+      <input id="trainBasePath" type="text" placeholder="선택된 .pt 경로" style="display: none;" readonly />
+    </div>
+
+    <div class="row inline">
+      <label>epochs <input id="trainEpochs" type="number" min="1" max="1000" value="100" size="5" /></label>
+      <label>imgsz
+        <select id="trainImgsz">
+          <option value="640">640</option>
+          <option value="768">768</option>
+          <option value="1024">1024</option>
+        </select>
+      </label>
+      <label>batch <input id="trainBatch" type="number" min="1" max="64" value="8" size="4" /></label>
+      <label>device
+        <select id="trainDevice">
+          <option value="mps">mps (Apple Silicon GPU)</option>
+          <option value="0">0 (NVIDIA CUDA GPU)</option>
+          <option value="cpu">cpu (프로세서)</option>
+        </select>
+      </label>
+      <label>이름 <input id="trainLabel" type="text" placeholder="모델 표시 이름 (선택)" size="18" /></label>
+    </div>
+
+    <div class="actions">
+      <button id="trainStart" class="primary">학습 시작</button>
+      <button id="trainCancel" disabled>중지</button>
+    </div>
+    <div id="trainStat" class="stat">대기 중</div>
+    <div id="trainLog" class="log"></div>
+  </section>
+</main>
+
+<div id="editor" class="editor hidden">
+  <div class="editor-bar">
+    <span id="editorName" class="muted"></span>
+    <span class="spacer"></span>
+    <label>부위 <select id="brushClass"></select></label>
+    <label>브러시 <span id="brushVal">40</span>px <input id="brushSize" type="range" min="4" max="300" value="40" /></label>
+    <button id="toolPaint" class="primary">칠하기</button>
+    <button id="toolErase">지우기</button>
+    <button id="toggleMask">마스크 보기</button>
+    <button id="viewResult">결과 보기</button>
+    <button id="undoStroke">되돌리기</button>
+    <button id="applyEdit" class="primary">적용 후 저장</button>
+    <button id="addDataset">데이터셋에 추가</button>
+    <button id="closeEditor">닫기</button>
+  </div>
+  <div class="editor-body"><div id="stageWrap"><canvas id="stage"></canvas></div></div>
+  <div class="editor-foot"><span id="editorStat" class="muted"></span></div>
+</div>
+
+<aside id="settings">
+  <div style="margin-bottom: 12px;">
+    <button id="btnResetDefaults" style="width: 100%; padding: 8px; font-weight: 500; background: #1f2a3d; border-color: #2b6cf6; color: #a5c6fe;" title="가장 검열이 잘 되는 최적의 기본 추천 설정으로 복원합니다">✨ 추천 최적 설정 적용</button>
+  </div>
+  <h2>검열 설정</h2>
+  <div class="field">
+    <label>검출 모델 (여러 개 선택 = 합집합)</label>
+    <div id="models"></div>
+  </div>
+  <div class="field">
+    <label>타일링 (고해상도 작은 부위 검출)</label>
+    <select id="tiling">
+      <option value="auto">자동</option>
+      <option value="always">항상</option>
+      <option value="never">끄기</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>검열 방식</label>
+    <select id="mode">
+      <option value="white">흰색</option>
+      <option value="black">검은색</option>
+      <option value="mosaic">모자이크</option>
+      <option value="blur">블러</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>유륜 찾기 방식</label>
+    <select id="areolaMethod">
+      <option value="off" selected>끄기 (윤곽만)</option>
+      <option value="ray">방사형 + 타원 피팅</option>
+      <option value="flood">색 확산</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>마스크 모양</label>
+    <select id="shape">
+      <option value="contour">윤곽 (세그멘테이션)</option>
+      <option value="ellipse">타원</option>
+      <option value="rect">사각형</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>여유 확장 <span id="dilateVal">4</span>px</label>
+    <input id="dilate" type="range" min="0" max="40" value="4" />
+  </div>
+  <div class="field">
+    <label>가장자리 부드럽게 <span id="featherVal">10</span>px</label>
+    <input id="feather" type="range" min="0" max="60" value="10" />
+  </div>
+  <div class="field">
+    <label>가장자리 유지 <span id="gammaVal">0.7</span></label>
+    <input id="gamma" type="range" min="0.3" max="2" step="0.05" value="0.7" />
+  </div>
+  <div class="field">
+    <label><input type="checkbox" id="scaleRes" checked /> 해상도에 비례 (1000px 기준)</label>
+  </div>
+  <div class="field" id="strengthField">
+    <label>강도 <span id="strengthVal">1.0</span>x</label>
+    <input id="strength" type="range" min="0.5" max="4" step="0.1" value="1" />
+  </div>
+
+  <h2>유륜 세부</h2>
+  <div class="field">
+    <label>색 허용 오차 <span id="cgTolVal">0.35</span></label>
+    <input id="cgTol" type="range" min="0.1" max="0.8" step="0.05" value="0.35" />
+  </div>
+  <div class="field">
+    <label>최대 탐색 배율 <span id="cgMaxVal">5.0</span>x</label>
+    <input id="cgMax" type="range" min="2" max="8" step="0.5" value="5" />
+  </div>
+  <div class="field">
+    <label>실패 시 고정 확대 <span id="cgFbVal">2.6</span>x</label>
+    <input id="cgFb" type="range" min="1" max="4" step="0.1" value="2.6" />
+  </div>
+
+  <h2>데이터셋</h2>
+  <div class="field">
+    <label>저장 폴더</label>
+    <div class="row"><input id="datasetDir" type="text" placeholder="파인튜닝 데이터셋 폴더" readonly /><button id="pickDataset">선택</button></div>
+  </div>
+  <div class="field"><span id="datasetStat" class="muted">미설정</span></div>
+
+  <h2>대상 부위</h2>
+  <div id="labels"></div>
+</aside>
+
+<script src="renderer.js"></script>
+<script src="review.js"></script>
+<script src="train.js"></script>
+</body>
+</html>

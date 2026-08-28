@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+release/
+release-artifacts/
+release-files/
+
+# Temporary & OS files
+.DS_Store
+Thumbs.db
+:memory:.ses
+*.log
+
+# Large local dataset & training runs
+dataset/
+
+# Large model binaries (auto-downloaded from Hugging Face on demand)
+*.onnx
+*.pt
+*.safetensors
+!models/.gitkeep
+
+# IDE & Editor
+.vscode/
+.idea/
+.fleet/
