@@ -24,13 +24,13 @@ jobs:
         include:
           - os: macos-latest
             arch: arm64
-            build_cmd: npm run build:mac -- --arm64
+            build_cmd: npm run build:mac -- --arm64 --publish never
           - os: macos-13
             arch: x64
-            build_cmd: npm run build:mac -- --x64
+            build_cmd: npm run build:mac -- --x64 --publish never
           - os: windows-latest
             arch: x64
-            build_cmd: npm run build:win -- --x64
+            build_cmd: npm run build:win -- --x64 --publish never
 
     steps:
       - name: Checkout repository
@@ -39,7 +39,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies

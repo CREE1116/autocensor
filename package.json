@@ -1,6 +1,6 @@
 {
   "name": "autocensor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Automatic censoring tool for anime/illustration images",
   "main": "electron/main.js",
   "scripts": {
@@ -36,16 +36,7 @@
       }
     ],
     "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": ["arm64", "x64"]
-        },
-        {
-          "target": "zip",
-          "arch": ["arm64", "x64"]
-        }
-      ],
+      "target": ["dmg", "zip"],
       "category": "public.app-category.graphics-design"
     },
     "dmg": {
@@ -64,16 +55,7 @@
       ]
     },
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
-          "target": "portable",
-          "arch": ["x64"]
-        }
-      ]
+      "target": ["nsis", "portable"]
     },
     "nsis": {
       "oneClick": false,
