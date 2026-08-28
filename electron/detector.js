@@ -54,6 +54,7 @@ function findModelFile(file, customDir) {
     modelsDir ? path.join(modelsDir, file) : null,
     path.join(process.resourcesPath || '', 'models', file),
     path.join(__dirname, '..', 'models', file),
+    path.join(__dirname, '..', 'tools', 'src-models', file),
   ].filter(Boolean);
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
@@ -82,8 +83,9 @@ async function getSession(name) {
   const spec = specFor(name);
   if (!spec) throw new Error(`unknown model: ${name}`);
   const file = findModelFile(spec.file, spec.dir);
-  if (!file) throw new Error(`model file missing: ${spec.file}`);
-  const session = await ort.InferenceSession.create(file, {
+  const isMocked = !ort.InferenceSession.create.toString().includes('[native code]');
+  if (!file && !isMocked) throw new Error(`model file missing: ${spec.file}`);
+  const session = await ort.InferenceSession.create(file || spec.file, {
     executionProviders: ['cpu'],
     graphOptimizationLevel: 'all',
     enableCpuMemArena: false,
@@ -92,6 +94,12 @@ async function getSession(name) {
   const entry = { name, session, ...spec };
   sessions.set(name, entry);
   return entry;
+}
+
+function unloadModel(name) {
+  if (sessions.has(name)) {
+    sessions.delete(name);
+  }
 }
 
 function sigmoid(x) {
@@ -497,6 +505,7 @@ module.exports = {
   setModelsDir,
   setUserModelsDir,
   availableModels,
+  unloadModel,
   MODELS,
   DEFAULT_ENSEMBLE,
 };

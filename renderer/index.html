@@ -256,9 +256,11 @@
   <div style="margin-bottom: 12px;">
     <button id="btnResetDefaults" style="width: 100%; padding: 8px; font-weight: 500; background: #1f2a3d; border-color: #2b6cf6; color: #a5c6fe;" title="가장 검열이 잘 되는 최적의 기본 추천 설정으로 복원합니다">✨ 추천 최적 설정 적용</button>
   </div>
-  <h2>검열 설정</h2>
   <div class="field">
-    <label>검출 모델 (여러 개 선택 = 합집합)</label>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+      <label style="margin-bottom: 0;">검출 모델 (여러 개 선택 = 합집합)</label>
+      <button id="btnRefreshModels" class="btn-sm" style="padding: 1px 6px; font-size: 10px;" title="모델 파일 설치 상태 새로고침">🔄 새로고침</button>
+    </div>
     <div id="models"></div>
   </div>
   <div class="field">

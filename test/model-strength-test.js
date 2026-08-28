@@ -26,12 +26,13 @@ const H = 320;
   const imgPng = await sharp(buf, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
 
   const cfg = defaultLabelConfig();
-  detector.setModelsDir(path.join(__dirname, '..', 'models'));
+  const os = require('os');
+  detector.setUserModelsDir(path.join(os.homedir(), 'Library', 'Application Support', 'autocensor', 'models'));
 
   // Run with default strength (1.0)
   const resDefault = await detector.detect(imgPng, {
-    models: ['anime-nano'],
-    modelConfigs: { 'anime-nano': { strength: 1.0 } },
+    models: ['anime-xl'],
+    modelConfigs: { 'anime-xl': { strength: 1.0 } },
     labelConfig: cfg,
     tiling: 'never',
   });
@@ -42,8 +43,8 @@ const H = 320;
 
   // Run with high strength (2.0x -> lower threshold, more sensitive)
   const resHigh = await detector.detect(imgPng, {
-    models: ['anime-nano'],
-    modelConfigs: { 'anime-nano': { strength: 2.0 } },
+    models: ['anime-xl'],
+    modelConfigs: { 'anime-xl': { strength: 2.0 } },
     labelConfig: cfg,
     tiling: 'never',
   });
@@ -52,8 +53,8 @@ const H = 320;
 
   // Run with low strength (0.5x -> higher threshold, stricter)
   const resLow = await detector.detect(imgPng, {
-    models: ['anime-nano'],
-    modelConfigs: { 'anime-nano': { strength: 0.5 } },
+    models: ['anime-xl'],
+    modelConfigs: { 'anime-xl': { strength: 0.5 } },
     labelConfig: cfg,
     tiling: 'never',
   });

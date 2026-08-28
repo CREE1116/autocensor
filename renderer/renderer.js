@@ -58,11 +58,11 @@ function renderModels() {
       : `<input type="checkbox" value="${m.key}" disabled title="다운로드 필요" />`;
 
     const dlBtnHtml = !isInstalled
-      ? `<button class="btn-sm btn-dl" data-key="${m.key}">다운로드</button>`
+      ? `<button class="btn-sm btn-dl primary" data-key="${m.key}" title="Hugging Face에서 모델 가중치 다운로드">다운로드</button>`
       : '';
 
-    const delBtnHtml = m.custom
-      ? `<button class="btn-sm btn-del" data-key="${m.key}" title="학습된 모델 삭제">삭제</button>`
+    const delBtnHtml = isInstalled
+      ? `<button class="btn-sm btn-del" data-key="${m.key}" title="${m.custom ? '학습된 모델 삭제' : '로컬 모델 파일 삭제'}">삭제</button>`
       : '';
 
     const strengthHtml = isInstalled
@@ -106,7 +106,10 @@ function renderModels() {
       delBtn.onclick = async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (confirm(`'${m.label}' 학습 모델을 정말 삭제할까요?`)) {
+        const msg = m.custom
+          ? `'${m.label}' 학습 모델을 정말 삭제할까요?`
+          : `'${m.label}' 모델 파일을 로컬에서 삭제할까요? (언제든 다시 다운로드할 수 있습니다)`;
+        if (confirm(msg)) {
           delBtn.disabled = true;
           try {
             await window.api.modelDelete(m.key);
@@ -428,6 +431,21 @@ async function init() {
     $('runPreview').disabled = false;
   };
   $('runPreview').onclick = runPreview;
+
+  if ($('btnRefreshModels')) {
+    $('btnRefreshModels').onclick = async () => {
+      $('btnRefreshModels').disabled = true;
+      try {
+        await window.refreshModels();
+      } finally {
+        $('btnRefreshModels').disabled = false;
+      }
+    };
+  }
+
+  window.addEventListener('focus', () => {
+    if (window.refreshModels) window.refreshModels();
+  });
 
   window.api.onBatchEvent(onBatchEvent);
   window.api.onModelDownloadProgress(onModelDownloadProgress);

@@ -12,6 +12,9 @@ const { censor } = require('../electron/censor');
 const review = require('../electron/review');
 const { addSample, datasetStats } = require('../electron/dataset');
 
+const { setUserModelsDir } = require('../electron/detector');
+setUserModelsDir(path.join(os.homedir(), 'Library', 'Application Support', 'autocensor', 'models'));
+
 const W = 700, H = 500;
 
 (async () => {
@@ -30,7 +33,7 @@ const W = 700, H = 500;
       outputDir: outDir,
       recursive: true,
       saveMasks: true,
-      detectOptions: { models: ['anime-nano'], labelConfig: defaultLabelConfig(), tiling: 'never' },
+      detectOptions: { models: ['anime-xl'], labelConfig: defaultLabelConfig(), tiling: 'never' },
       censorOptions: { mode: 'white', shape: 'contour' },
     },
     () => {}

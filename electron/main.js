@@ -338,9 +338,22 @@ ipcMain.handle('model-download-cancel', () => download.cancelDownload());
 
 ipcMain.handle('model-delete', async (_e, key) => {
   const uDir = userModelsDir();
-  const jsonPath = path.join(uDir, `${key}.json`);
-  const onnxPath = path.join(uDir, `${key}.onnx`);
-  if (fs.existsSync(jsonPath)) await fsp.unlink(jsonPath);
-  if (fs.existsSync(onnxPath)) await fsp.unlink(onnxPath);
+  const spec = detector.MODELS[key];
+  const onnxFile = spec ? spec.file : `${key}.onnx`;
+  const ptFile = onnxFile.replace(/\.onnx$/i, '.pt');
+
+  const targets = [
+    path.join(uDir, `${key}.json`),
+    path.join(uDir, onnxFile),
+    path.join(uDir, ptFile),
+  ];
+  for (const p of targets) {
+    try {
+      if (fs.existsSync(p)) await fsp.unlink(p);
+    } catch {
+      // ignore
+    }
+  }
+  detector.unloadModel(key);
   return true;
 });
