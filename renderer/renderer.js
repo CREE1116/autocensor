@@ -365,6 +365,38 @@ async function init() {
   };
   $('mode').onchange();
 
+  $('inputDir').onchange = () => {
+    const val = $('inputDir').value.trim();
+    if (val && !$('outputDir').value) {
+      $('outputDir').value = `${val}_censored`;
+    }
+  };
+
+  const updateSidebarDataset = async () => {
+    const dir = $('datasetDir').value.trim();
+    if (!dir) {
+      $('datasetStat').textContent = '미설정';
+      return;
+    }
+    try {
+      const ready = await window.api.trainDatasetReady(dir);
+      if (ready.ok) {
+        const stats = await window.api.datasetStats(dir);
+        const parts = Object.entries(stats.classes).map(([k, v]) => `${meta.ko[k] || k} ${v}`);
+        $('datasetStat').textContent = `${ready.samples}장 · 폴리곤 ${stats.polygons}${
+          parts.length ? ` · ${parts.join(', ')}` : ''
+        }`;
+      } else {
+        $('datasetStat').textContent = `사용 불가 — ${ready.reason}`;
+      }
+    } catch {
+      $('datasetStat').textContent = '폴더 확인 불가';
+    }
+  };
+
+  $('datasetDir').onchange = updateSidebarDataset;
+  $('datasetDir').oninput = updateSidebarDataset;
+
   $('pickInput').onclick = async () => {
     const d = await window.api.pickFolder('입력 폴더 선택');
     if (d) {
@@ -375,6 +407,13 @@ async function init() {
   $('pickOutput').onclick = async () => {
     const d = await window.api.pickFolder('출력 폴더 선택');
     if (d) $('outputDir').value = d;
+  };
+  $('pickDataset').onclick = async () => {
+    const d = await window.api.pickFolder('데이터셋 저장 폴더 선택');
+    if (d) {
+      $('datasetDir').value = d;
+      await updateSidebarDataset();
+    }
   };
   $('openOut').onclick = () => window.api.openPath($('outputDir').value);
 

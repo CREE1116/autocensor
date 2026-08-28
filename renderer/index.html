@@ -25,12 +25,12 @@
   <section id="tab-batch" class="tab-panel active">
     <div class="row">
       <label>입력 폴더</label>
-      <input id="inputDir" type="text" placeholder="검열할 이미지가 든 폴더" readonly />
+      <input id="inputDir" type="text" placeholder="검열할 이미지가 든 폴더 (직접 입력 또는 선택)" />
       <button id="pickInput">선택</button>
     </div>
     <div class="row">
       <label>출력 폴더</label>
-      <input id="outputDir" type="text" placeholder="결과 저장 폴더" readonly />
+      <input id="outputDir" type="text" placeholder="결과 저장 폴더 (직접 입력 또는 선택)" />
       <button id="pickOutput">선택</button>
     </div>
     <div class="row inline">
@@ -78,7 +78,7 @@
   <section id="tab-review" class="tab-panel">
     <div class="row">
       <label>결과 폴더</label>
-      <input id="reviewDir" type="text" placeholder="배치 결과가 있는 폴더" readonly />
+      <input id="reviewDir" type="text" placeholder="배치 결과가 있는 폴더 (직접 입력 또는 선택)" />
       <button id="pickReview">선택</button>
       <button id="reloadReview">불러오기</button>
     </div>
@@ -102,14 +102,15 @@
 
     <div class="notice ok" style="background:#131b26; border-color:#2b4a7a; color:#bcd4f7; line-height: 1.6;">
       💡 <b>내 그림체 맞춤 학습 (간편 2단계)</b><br />
-      1. [검토/보정] 탭에서 보정한 데이터셋 폴더를 확인하세요.<br />
+      1. [검토/보정] 탭에서 보정한 데이터셋 폴더를 선택하세요.<br />
       2. <b>[학습 시작]</b>을 누르면 자동으로 최적화 학습되어 사이드바에 새 모델이 등록됩니다.
     </div>
 
     <div class="row">
       <label>데이터셋</label>
-      <input id="trainDataset" type="text" placeholder="사이드바에서 지정한 데이터셋 폴더" readonly />
-      <button id="useDatasetDir">사이드바 값 사용</button>
+      <input id="trainDataset" type="text" placeholder="데이터셋 폴더 경로 (직접 입력 또는 선택)" />
+      <button id="pickTrainDataset">선택</button>
+      <button id="useDatasetDir">사이드바 값 복사</button>
       <span id="trainDatasetStat" class="muted"></span>
     </div>
 
@@ -124,7 +125,7 @@
         <option value="__local__">로컬 .pt 직접 선택...</option>
       </select>
       <button id="trainDlBase" class="btn-sm" style="display: none;">가중치 다운로드</button>
-      <input id="trainBasePath" type="text" placeholder="선택된 .pt 경로" style="display: none;" readonly />
+      <input id="trainBasePath" type="text" placeholder="선택된 .pt 경로" style="display: none;" />
     </div>
 
     <div class="row inline">
@@ -151,8 +152,72 @@
       <button id="trainStart" class="primary">학습 시작</button>
       <button id="trainCancel" disabled>중지</button>
     </div>
-    <div id="trainStat" class="stat">대기 중</div>
-    <div id="trainLog" class="log"></div>
+
+    <!-- Rich Training Dashboard -->
+    <div id="trainDashboard" class="train-dashboard hidden">
+      <div class="dash-header">
+        <div class="dash-title">
+          <span id="dashBadge" class="dash-stage-badge">학습 준비 중</span>
+          <span id="dashEpochText" class="dash-epoch">Epoch 0 / 100 (0%)</span>
+        </div>
+        <div class="dash-times">
+          <span>⏱️ 경과: <b id="dashElapsed">00:00</b></span>
+          <span>⏳ 예상 남은 시간: <b id="dashEta">계산 중...</b></span>
+        </div>
+      </div>
+
+      <!-- Total Progress Bar -->
+      <div class="dash-progress-wrap">
+        <div class="dash-progress-label">
+          <span>전체 진행률</span>
+          <span id="dashTotalPct">0%</span>
+        </div>
+        <div class="dash-progress"><div id="dashTotalBar" style="width: 0%;"></div></div>
+      </div>
+
+      <!-- Batch Sub Progress Bar -->
+      <div class="dash-progress-wrap batch-wrap">
+        <div class="dash-progress-label sub">
+          <span>현재 Epoch 배치: <span id="dashBatchText">0 / 0</span></span>
+          <span id="dashBatchSpeed">-- it/s</span>
+        </div>
+        <div class="dash-progress sub"><div id="dashBatchBar" style="width: 0%;"></div></div>
+      </div>
+
+      <!-- Metric Cards Grid -->
+      <div class="dash-metrics-grid">
+        <div class="dash-card">
+          <div class="dash-card-label">Box Loss</div>
+          <div id="metricBoxLoss" class="dash-card-val">-</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">Seg Loss</div>
+          <div id="metricSegLoss" class="dash-card-val">-</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">Cls Loss</div>
+          <div id="metricClsLoss" class="dash-card-val">-</div>
+        </div>
+        <div class="dash-card highlight">
+          <div class="dash-card-label">Mask mAP50</div>
+          <div id="metricMaskMap" class="dash-card-val">-</div>
+        </div>
+        <div class="dash-card highlight">
+          <div class="dash-card-label">Box mAP50</div>
+          <div id="metricBoxMap" class="dash-card-val">-</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">GPU 메모리</div>
+          <div id="metricGpuMem" class="dash-card-val">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="train-log-header">
+      <div id="trainStat" class="stat">대기 중</div>
+      <button id="btnToggleTrainLog" class="btn-sm">터미널 로그 보기</button>
+    </div>
+    <div id="trainLog" class="log train-log-box hidden"></div>
   </section>
 </main>
 
@@ -254,7 +319,7 @@
   <h2>데이터셋</h2>
   <div class="field">
     <label>저장 폴더</label>
-    <div class="row"><input id="datasetDir" type="text" placeholder="파인튜닝 데이터셋 폴더" readonly /><button id="pickDataset">선택</button></div>
+    <div class="row"><input id="datasetDir" type="text" placeholder="파인튜닝 데이터셋 폴더 (직접 입력 또는 선택)" /><button id="pickDataset">선택</button></div>
   </div>
   <div class="field"><span id="datasetStat" class="muted">미설정</span></div>
 

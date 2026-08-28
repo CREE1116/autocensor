@@ -43,8 +43,8 @@ const KO = {
 const DEFAULTS = {
   nipple: {
     enabled: true,
-    threshold: 0.25,
-    expand: 1.2,
+    threshold: 0.8,
+    expand: 1.0,
     areola: {
       // 'ray'  - cast rays outward from the nipple, fit an ellipse to the edges
       // 'flood'- region-grow across non-skin pixels
@@ -64,17 +64,17 @@ const DEFAULTS = {
       fallbackExpand: 2.6,
     },
   },
-  vagina: { enabled: true, threshold: 0.28, expand: 1.25 },
-  penis: { enabled: true, threshold: 0.3, expand: 1.15 },
-  testicles: { enabled: true, threshold: 0.3, expand: 1.15 },
-  anus: { enabled: false, threshold: 0.3, expand: 1.4 },
-  'pubic hair': { enabled: false, threshold: 0.35, expand: 1.1 },
-  breast: { enabled: false, threshold: 0.4, expand: 1.0 },
-  cum: { enabled: false, threshold: 0.35, expand: 1.0 },
-  'cross-section': { enabled: false, threshold: 0.35, expand: 1.0 },
-  'x-ray': { enabled: false, threshold: 0.35, expand: 1.0 },
-  'female face': { enabled: false, threshold: 0.4, expand: 1.0 },
-  'male face': { enabled: false, threshold: 0.4, expand: 1.0 },
+  vagina: { enabled: true, threshold: 0.8, expand: 1.0 },
+  penis: { enabled: true, threshold: 0.8, expand: 1.0 },
+  testicles: { enabled: true, threshold: 0.8, expand: 1.0 },
+  anus: { enabled: false, threshold: 0.8, expand: 1.0 },
+  'pubic hair': { enabled: false, threshold: 0.8, expand: 1.0 },
+  breast: { enabled: false, threshold: 0.8, expand: 1.0 },
+  cum: { enabled: false, threshold: 0.8, expand: 1.0 },
+  'cross-section': { enabled: false, threshold: 0.8, expand: 1.0 },
+  'x-ray': { enabled: false, threshold: 0.8, expand: 1.0 },
+  'female face': { enabled: false, threshold: 0.8, expand: 1.0 },
+  'male face': { enabled: false, threshold: 0.8, expand: 1.0 },
 };
 
 function defaultLabelConfig() {
