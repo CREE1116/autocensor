@@ -18,6 +18,9 @@
   let currentEpoch = 0;
   let currentBatch = 0;
   let totalBatches = 0;
+  let bestMaskMap = 0;
+  let bestEpoch = 0;
+  let stagnantEpochs = 0;
 
   function formatTime(seconds) {
     if (isNaN(seconds) || seconds < 0 || !isFinite(seconds)) return '--:--';
@@ -55,6 +58,18 @@
 
     for (const line of lines) {
       const trimmed = line.trim();
+
+      // Early stopping check
+      if (trimmed.includes('EarlyStopping') || trimmed.includes('Training stopped early')) {
+        if ($('metricOverfit')) {
+          $('metricOverfit').textContent = '🛑 과적합 방지 조기종료';
+          $('metricOverfit').style.color = '#58a6ff';
+        }
+        if ($('dashBadge')) {
+          $('dashBadge').className = 'dash-stage-badge done';
+          $('dashBadge').textContent = `🛑 조기종료 (ep${bestEpoch || currentEpoch} 최적 모델)`;
+        }
+      }
 
       // 1. Loss line: "1/100 11.7G 2.416 3.942 5.63 0.007809 7.056 31 640: 90% 19/21 1.8s/it"
       const lossMatch = trimmed.match(
@@ -97,6 +112,35 @@
         const maskMap50 = parseFloat(valMatch[7]);
         if ($('metricBoxMap')) $('metricBoxMap').textContent = `${(boxMap50 * 100).toFixed(1)}%`;
         if ($('metricMaskMap')) $('metricMaskMap').textContent = `${(maskMap50 * 100).toFixed(1)}%`;
+
+        if (maskMap50 > bestMaskMap) {
+          bestMaskMap = maskMap50;
+          bestEpoch = currentEpoch;
+          stagnantEpochs = 0;
+          if ($('metricBestMap')) {
+            $('metricBestMap').textContent = `${(bestMaskMap * 100).toFixed(1)}% (ep${bestEpoch})`;
+          }
+          if ($('metricOverfit')) {
+            $('metricOverfit').textContent = '✨ 최고점 갱신 (개선 중)';
+            $('metricOverfit').style.color = '#7ee787';
+          }
+          if ($('dashBadge')) {
+            $('dashBadge').className = 'dash-stage-badge';
+            $('dashBadge').textContent = '✨ 성능 개선 중';
+          }
+        } else {
+          stagnantEpochs++;
+          if (stagnantEpochs >= 5) {
+            if ($('metricOverfit')) {
+              $('metricOverfit').textContent = `⚠️ 과적합 조짐 (${stagnantEpochs}ep 정체)`;
+              $('metricOverfit').style.color = '#e3b341';
+            }
+            if ($('dashBadge')) {
+              $('dashBadge').className = 'dash-stage-badge err';
+              $('dashBadge').textContent = `⚠️ 성능 정체 (${stagnantEpochs}ep)`;
+            }
+          }
+        }
       }
     }
 
@@ -212,6 +256,9 @@
     currentBatch = 0;
     totalEpochs = Number($('trainEpochs').value) || 100;
     totalBatches = 0;
+    bestMaskMap = 0;
+    bestEpoch = 0;
+    stagnantEpochs = 0;
 
     $('trainStart').disabled = true;
     $('trainCancel').disabled = false;
@@ -233,7 +280,11 @@
     $('metricSegLoss').textContent = '-';
     $('metricClsLoss').textContent = '-';
     $('metricMaskMap').textContent = '-';
-    $('metricBoxMap').textContent = '-';
+    $('metricBestMap').textContent = '-';
+    if ($('metricOverfit')) {
+      $('metricOverfit').textContent = '정상 (학습 중)';
+      $('metricOverfit').style.color = '#7ee787';
+    }
     $('metricGpuMem').textContent = '-';
 
     startTimer();
@@ -273,6 +324,7 @@
       epochs: totalEpochs,
       imgsz: Number($('trainImgsz').value),
       batch: Number($('trainBatch').value),
+      patience: Number($('trainPatience').value),
       device: $('trainDevice').value,
       label: $('trainLabel').value.trim() || undefined,
     });

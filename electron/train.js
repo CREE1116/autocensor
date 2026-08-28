@@ -85,6 +85,7 @@ from pathlib import Path
 from ultralytics import YOLO
 
 cfg = json.loads(Path(sys.argv[1]).read_text())
+patience = int(cfg.get("patience", 25))
 model = YOLO(cfg["base"])
 model.train(
     data=cfg["data"],
@@ -94,6 +95,8 @@ model.train(
     device=cfg["device"],
     project=cfg["project"],
     name=cfg["name"],
+    patience=patience,
+    save=True,
     exist_ok=True,
     verbose=True,
     plots=False,
@@ -187,6 +190,7 @@ async function startTraining(opts, onEvent) {
     epochs = 100,
     imgsz = 640,
     batch = 8,
+    patience = 25,
     device = defaultDevice(),
     runsDir,
     userModelsDir,
@@ -211,6 +215,7 @@ async function startTraining(opts, onEvent) {
       epochs,
       imgsz,
       batch,
+      patience,
       device,
       project: runsDir,
       name,
@@ -219,7 +224,7 @@ async function startTraining(opts, onEvent) {
 
   onEvent({
     type: 'log',
-    text: `데이터셋 ${ready.samples}장 · base=${path.basename(baseWeight)} · epochs=${epochs} · imgsz=${imgsz} · batch=${batch} · device=${device}\n`,
+    text: `데이터셋 ${ready.samples}장 · base=${path.basename(baseWeight)} · epochs=${epochs} · imgsz=${imgsz} · batch=${batch} · patience=${patience} · device=${device}\n`,
   });
 
   return new Promise((resolve) => {

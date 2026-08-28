@@ -130,6 +130,14 @@
 
     <div class="row inline">
       <label>epochs <input id="trainEpochs" type="number" min="1" max="1000" value="100" size="5" /></label>
+      <label>조기종료
+        <select id="trainPatience">
+          <option value="15">15 에폭 (빠름)</option>
+          <option value="25" selected>25 에폭 (권장)</option>
+          <option value="50">50 에폭 (느긋함)</option>
+          <option value="0">끄기 (끝까지)</option>
+        </select>
+      </label>
       <label>imgsz
         <select id="trainImgsz">
           <option value="640">640</option>
@@ -199,12 +207,16 @@
           <div id="metricClsLoss" class="dash-card-val">-</div>
         </div>
         <div class="dash-card highlight">
-          <div class="dash-card-label">Mask mAP50</div>
+          <div class="dash-card-label">현재 Mask mAP</div>
           <div id="metricMaskMap" class="dash-card-val">-</div>
         </div>
-        <div class="dash-card highlight">
-          <div class="dash-card-label">Box mAP50</div>
-          <div id="metricBoxMap" class="dash-card-val">-</div>
+        <div class="dash-card highlight" style="border-color: #388bfd; background: #0c1d38;">
+          <div class="dash-card-label">최고 성능 (Best mAP)</div>
+          <div id="metricBestMap" class="dash-card-val">-</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">과적합 감지 상태</div>
+          <div id="metricOverfit" class="dash-card-val" style="font-size: 11px; font-weight: normal; color: #7ee787;">정상 (학습 중)</div>
         </div>
         <div class="dash-card">
           <div class="dash-card-label">GPU 메모리</div>
