@@ -1,6 +1,6 @@
 {
   "name": "autocensor",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Automatic censoring tool for anime/illustration images",
   "main": "electron/main.js",
   "scripts": {

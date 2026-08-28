@@ -46,7 +46,17 @@ jobs:
         run: npm ci
 
       - name: Build Electron Packages
-        run: ${{ matrix.build_cmd }}
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            echo "==> Build attempt $i <=="
+            if ${{ matrix.build_cmd }}; then
+              exit 0
+            fi
+            echo "==> Build attempt $i failed! Retrying in 5 seconds... <=="
+            sleep 5
+          done
+          exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
