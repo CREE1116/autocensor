@@ -147,63 +147,149 @@ async function runPass(entry, regionBuffer, offsetX, offsetY, ctx) {
   const out = await session.run({ [session.inputNames[0]]: input });
   const pred = out[session.outputNames[0]];
 
-  const [, channels, numBoxes] = pred.dims;
   const isSeg = task === 'segment';
-  const expected = 4 + numClasses + (isSeg ? NUM_COEFFS : 0);
-  if (channels !== expected) {
-    throw new Error(
-      `${entry.name}: prediction has ${channels} channels, expected ${expected}`
-    );
-  }
-  const p = pred.data;
-
   let proto = null;
   let protoW = 0;
   let protoH = 0;
-  if (isSeg) {
+  if (isSeg && out[session.outputNames[1]]) {
     const protoT = out[session.outputNames[1]];
     [, , protoH, protoW] = protoT.dims;
     proto = protoT.data;
   }
   const protoPlane = protoH * protoW;
+  const p = pred.data;
 
   const raw = [];
-  for (let i = 0; i < numBoxes; i++) {
-    let best = -1;
-    let bestScore = 0;
-    for (let c = 0; c < numClasses; c++) {
-      const s = p[(4 + c) * numBoxes + i];
-      if (s > bestScore) {
-        bestScore = s;
-        best = c;
-      }
+  const dims = pred.dims;
+  const dim1 = dims[1];
+  const dim2 = dims[2];
+
+  if (dim2 === 38 || (dim2 === 6 && !isSeg)) {
+    // End-to-end / Decoded format: [1, numBoxes, 38 or 6]
+    // Row format: [x0, y0, x1, y1, score, class_id, 32 mask coefficients...]
+    const numBoxes = dim1;
+    const stride = dim2;
+    for (let i = 0; i < numBoxes; i++) {
+      const offset = i * stride;
+      const score = p[offset + 4];
+      const classId = Math.round(p[offset + 5]);
+      if (classId < 0 || classId >= numClasses) continue;
+
+      const label = map[classes[classId]];
+      if (!label) continue;
+      const cfg = ctx.labelConfig[label];
+      if (!cfg || !cfg.enabled) continue;
+
+      const mStrength =
+        (ctx.modelConfigs && ctx.modelConfigs[entry.name] && ctx.modelConfigs[entry.name].strength) ||
+        1.0;
+      const effectiveThreshold = Math.max(
+        0.05,
+        Math.min(0.95, cfg.threshold / Math.max(0.2, mStrength))
+      );
+      if (score < effectiveThreshold) continue;
+
+      const x0 = p[offset + 0];
+      const y0 = p[offset + 1];
+      const x1 = p[offset + 2];
+      const y1 = p[offset + 3];
+
+      raw.push({
+        label,
+        score,
+        box: [x0, y0, x1, y1],
+        index: i,
+        isEndToEnd: true,
+        coeffOffset: offset + 6,
+      });
     }
-    if (best < 0) continue;
-    const label = map[classes[best]];
-    if (!label) continue;
-    const cfg = ctx.labelConfig[label];
-    if (!cfg || !cfg.enabled) continue;
+  } else if (dim2 > dim1 && (dim1 === 4 + numClasses + (isSeg ? NUM_COEFFS : 0) || dim1 < 100)) {
+    // Standard Column-major format: [1, channels, numBoxes] (e.g. [1, 48, 8400])
+    const numBoxes = dim2;
 
-    // Apply per-model strength multiplier: higher strength -> lower threshold (more sensitive)
-    const mStrength =
-      (ctx.modelConfigs && ctx.modelConfigs[entry.name] && ctx.modelConfigs[entry.name].strength) ||
-      1.0;
-    const effectiveThreshold = Math.max(
-      0.05,
-      Math.min(0.95, cfg.threshold / Math.max(0.2, mStrength))
-    );
-    if (bestScore < effectiveThreshold) continue;
+    for (let i = 0; i < numBoxes; i++) {
+      let best = -1;
+      let bestScore = 0;
+      for (let c = 0; c < numClasses; c++) {
+        const s = p[(4 + c) * numBoxes + i];
+        if (s > bestScore) {
+          bestScore = s;
+          best = c;
+        }
+      }
+      if (best < 0) continue;
+      const label = map[classes[best]];
+      if (!label) continue;
+      const cfg = ctx.labelConfig[label];
+      if (!cfg || !cfg.enabled) continue;
 
-    const cx = p[i];
-    const cy = p[numBoxes + i];
-    const w = p[2 * numBoxes + i];
-    const h = p[3 * numBoxes + i];
-    raw.push({
-      label,
-      score: bestScore,
-      box: [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], // letterboxed input space
-      index: i,
-    });
+      const mStrength =
+        (ctx.modelConfigs && ctx.modelConfigs[entry.name] && ctx.modelConfigs[entry.name].strength) ||
+        1.0;
+      const effectiveThreshold = Math.max(
+        0.05,
+        Math.min(0.95, cfg.threshold / Math.max(0.2, mStrength))
+      );
+      if (bestScore < effectiveThreshold) continue;
+
+      const cx = p[i];
+      const cy = p[numBoxes + i];
+      const w = p[2 * numBoxes + i];
+      const h = p[3 * numBoxes + i];
+      raw.push({
+        label,
+        score: bestScore,
+        box: [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2],
+        index: i,
+        isEndToEnd: false,
+        numBoxes,
+      });
+    }
+  } else {
+    // Row-major format: [1, numBoxes, channels] (e.g. [1, 8400, 48])
+    const numBoxes = dim1;
+    const channels = dim2;
+
+    for (let i = 0; i < numBoxes; i++) {
+      const offset = i * channels;
+      let best = -1;
+      let bestScore = 0;
+      for (let c = 0; c < numClasses; c++) {
+        const s = p[offset + 4 + c];
+        if (s > bestScore) {
+          bestScore = s;
+          best = c;
+        }
+      }
+      if (best < 0) continue;
+      const label = map[classes[best]];
+      if (!label) continue;
+      const cfg = ctx.labelConfig[label];
+      if (!cfg || !cfg.enabled) continue;
+
+      const mStrength =
+        (ctx.modelConfigs && ctx.modelConfigs[entry.name] && ctx.modelConfigs[entry.name].strength) ||
+        1.0;
+      const effectiveThreshold = Math.max(
+        0.05,
+        Math.min(0.95, cfg.threshold / Math.max(0.2, mStrength))
+      );
+      if (bestScore < effectiveThreshold) continue;
+
+      const cx = p[offset + 0];
+      const cy = p[offset + 1];
+      const w = p[offset + 2];
+      const h = p[offset + 3];
+      raw.push({
+        label,
+        score: bestScore,
+        box: [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2],
+        index: i,
+        isEndToEnd: false,
+        isRowMajor: true,
+        coeffOffset: offset + 4 + numClasses,
+      });
+    }
   }
 
   const kept = nms(raw, ctx.nmsIou);
@@ -257,11 +343,16 @@ async function runPass(entry, regionBuffer, offsetX, offsetY, ctx) {
     // box is the closest stand-in, and for a nipple it is also a usable seed for
     // the areola fit.
     let small = null;
-    if (isSeg) {
+    if (isSeg && proto) {
       small = new Float32Array(protoPlane);
       for (let c = 0; c < NUM_COEFFS; c++) {
-        const coeff = p[(4 + numClasses + c) * numBoxes + det.index];
-        if (coeff === 0) continue;
+        let coeff = 0;
+        if (det.isEndToEnd || det.isRowMajor) {
+          coeff = p[det.coeffOffset + c];
+        } else {
+          coeff = p[(4 + numClasses + c) * det.numBoxes + det.index];
+        }
+        if (coeff === 0 || isNaN(coeff)) continue;
         const base = c * protoPlane;
         for (let k = 0; k < protoPlane; k++) small[k] += coeff * proto[base + k];
       }
