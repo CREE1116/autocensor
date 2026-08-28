@@ -334,6 +334,9 @@ async function init() {
       document.querySelectorAll('.tab-panel').forEach((x) => x.classList.remove('active'));
       t.classList.add('active');
       $(`tab-${t.dataset.tab}`).classList.add('active');
+      if (t.dataset.tab === 'train' && window.drawTrainCharts) {
+        setTimeout(window.drawTrainCharts, 20);
+      }
     };
   });
 

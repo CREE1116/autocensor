@@ -223,6 +223,33 @@
           <div id="metricGpuMem" class="dash-card-val">-</div>
         </div>
       </div>
+
+      <!-- Real-time Training Charts Grid -->
+      <div class="dash-charts-grid">
+        <div class="dash-chart-card">
+          <div class="dash-chart-header">
+            <span class="dash-chart-title">📉 학습 손실 추이 (Loss)</span>
+            <div class="dash-chart-legend">
+              <span class="legend-item"><span class="legend-dot" style="background:#f85149;"></span>Box</span>
+              <span class="legend-item"><span class="legend-dot" style="background:#d29922;"></span>Seg</span>
+              <span class="legend-item"><span class="legend-dot" style="background:#a371f7;"></span>Cls</span>
+            </div>
+          </div>
+          <canvas id="chartLoss" class="dash-canvas" height="150"></canvas>
+        </div>
+
+        <div class="dash-chart-card">
+          <div class="dash-chart-header">
+            <span class="dash-chart-title">📈 검증 정밀도 (Validation mAP)</span>
+            <div class="dash-chart-legend">
+              <span class="legend-item"><span class="legend-dot" style="background:#3fb950;"></span>Mask mAP</span>
+              <span class="legend-item"><span class="legend-dot" style="background:#58a6ff;"></span>Box mAP</span>
+              <span class="legend-item"><span class="legend-dot" style="background:#f0883e;"></span>Best★</span>
+            </div>
+          </div>
+          <canvas id="chartMap" class="dash-canvas" height="150"></canvas>
+        </div>
+      </div>
     </div>
 
     <div class="train-log-header">

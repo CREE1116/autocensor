@@ -21,6 +21,7 @@
   let bestMaskMap = 0;
   let bestEpoch = 0;
   let stagnantEpochs = 0;
+  let trainHistory = [];
 
   function formatTime(seconds) {
     if (isNaN(seconds) || seconds < 0 || !isFinite(seconds)) return '--:--';
@@ -52,6 +53,233 @@
     if (atBottom) el.scrollTop = el.scrollHeight;
   }
 
+  function setupCanvas(canvas) {
+    if (!canvas) return null;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width || 320;
+    const h = rect.height || 150;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.resetTransform?.();
+    ctx.scale(dpr, dpr);
+    return { ctx, width: w, height: h };
+  }
+
+  function drawLossChart() {
+    const canvas = $('chartLoss');
+    const info = setupCanvas(canvas);
+    if (!info) return;
+    const { ctx, width, height } = info;
+
+    ctx.clearRect(0, 0, width, height);
+
+    const padLeft = 36;
+    const padRight = 14;
+    const padTop = 15;
+    const padBottom = 22;
+    const plotW = width - padLeft - padRight;
+    const plotH = height - padTop - padBottom;
+
+    // Grid & axes
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+
+    let maxLoss = 4.0;
+    for (const h of trainHistory) {
+      if (h.boxLoss !== undefined) maxLoss = Math.max(maxLoss, h.boxLoss);
+      if (h.segLoss !== undefined) maxLoss = Math.max(maxLoss, h.segLoss);
+      if (h.clsLoss !== undefined) maxLoss = Math.max(maxLoss, h.clsLoss);
+    }
+    maxLoss = Math.ceil(maxLoss * 1.1 * 10) / 10;
+
+    for (let i = 0; i <= 3; i++) {
+      const yVal = (maxLoss * (3 - i)) / 3;
+      const yPos = padTop + (plotH * i) / 3;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, yPos);
+      ctx.lineTo(width - padRight, yPos);
+      ctx.stroke();
+      ctx.fillText(yVal.toFixed(1), padLeft - 6, yPos);
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const numTicks = Math.min(5, Math.max(1, totalEpochs));
+    for (let i = 0; i <= numTicks; i++) {
+      const ep = Math.round((totalEpochs * i) / numTicks);
+      if (ep === 0 && numTicks > 1) continue;
+      const xPos = padLeft + (plotW * (ep || 1)) / Math.max(1, totalEpochs);
+      ctx.fillText(`ep${ep || 1}`, xPos, height - padBottom + 6);
+    }
+
+    if (trainHistory.length === 0) {
+      ctx.fillStyle = '#484f58';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('학습 데이터 대기 중...', padLeft + plotW / 2, padTop + plotH / 2);
+      return;
+    }
+
+    const toX = (ep) => padLeft + (plotW * (ep - 1)) / Math.max(1, totalEpochs - 1);
+    const toY = (val) => padTop + plotH - (plotH * Math.min(maxLoss, Math.max(0, val))) / maxLoss;
+
+    function plotLine(key, color) {
+      const valid = trainHistory.filter((h) => h[key] !== undefined);
+      if (valid.length === 0) return;
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      valid.forEach((pt, idx) => {
+        const x = toX(pt.epoch);
+        const y = toY(pt[key]);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      const last = valid[valid.length - 1];
+      const lx = toX(last.epoch);
+      const ly = toY(last[key]);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    plotLine('boxLoss', '#f85149');
+    plotLine('segLoss', '#d29922');
+    plotLine('clsLoss', '#a371f7');
+  }
+
+  function drawMapChart() {
+    const canvas = $('chartMap');
+    const info = setupCanvas(canvas);
+    if (!info) return;
+    const { ctx, width, height } = info;
+
+    ctx.clearRect(0, 0, width, height);
+
+    const padLeft = 36;
+    const padRight = 14;
+    const padTop = 15;
+    const padBottom = 22;
+    const plotW = width - padLeft - padRight;
+    const plotH = height - padTop - padBottom;
+
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+
+    for (let i = 0; i <= 4; i++) {
+      const pct = (4 - i) * 25;
+      const yPos = padTop + (plotH * i) / 4;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, yPos);
+      ctx.lineTo(width - padRight, yPos);
+      ctx.stroke();
+      ctx.fillText(`${pct}%`, padLeft - 6, yPos);
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const numTicks = Math.min(5, Math.max(1, totalEpochs));
+    for (let i = 0; i <= numTicks; i++) {
+      const ep = Math.round((totalEpochs * i) / numTicks);
+      if (ep === 0 && numTicks > 1) continue;
+      const xPos = padLeft + (plotW * (ep || 1)) / Math.max(1, totalEpochs);
+      ctx.fillText(`ep${ep || 1}`, xPos, height - padBottom + 6);
+    }
+
+    const valPoints = trainHistory.filter((h) => h.maskMap !== undefined || h.boxMap !== undefined);
+    if (valPoints.length === 0) {
+      ctx.fillStyle = '#484f58';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('에폭 검증 결과 대기 중...', padLeft + plotW / 2, padTop + plotH / 2);
+      return;
+    }
+
+    const toX = (ep) => padLeft + (plotW * (ep - 1)) / Math.max(1, totalEpochs - 1);
+    const toY = (val) => padTop + plotH - plotH * Math.min(1.0, Math.max(0, val));
+
+    const maskPts = trainHistory.filter((h) => h.maskMap !== undefined);
+    if (maskPts.length > 0) {
+      const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+      grad.addColorStop(0, 'rgba(63, 185, 80, 0.25)');
+      grad.addColorStop(1, 'rgba(63, 185, 80, 0.0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(toX(maskPts[0].epoch), padTop + plotH);
+      maskPts.forEach((pt) => ctx.lineTo(toX(pt.epoch), toY(pt.maskMap)));
+      ctx.lineTo(toX(maskPts[maskPts.length - 1].epoch), padTop + plotH);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function plotLine(key, color, isMain) {
+      const valid = trainHistory.filter((h) => h[key] !== undefined);
+      if (valid.length === 0) return;
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = isMain ? 2.2 : 1.5;
+      ctx.lineJoin = 'round';
+      valid.forEach((pt, idx) => {
+        const x = toX(pt.epoch);
+        const y = toY(pt[key]);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      valid.forEach((pt) => {
+        const x = toX(pt.epoch);
+        const y = toY(pt[key]);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    plotLine('boxMap', '#58a6ff', false);
+    plotLine('maskMap', '#3fb950', true);
+
+    const bestPoint = maskPts.find((h) => h.isBest);
+    if (bestPoint) {
+      const bx = toX(bestPoint.epoch);
+      const by = toY(bestPoint.maskMap);
+
+      ctx.strokeStyle = '#f0883e';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(bx, by, 6, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#f0883e';
+      ctx.beginPath();
+      ctx.arc(bx, by, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#f0883e';
+      ctx.font = 'bold 10px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`★ ${(bestPoint.maskMap * 100).toFixed(1)}%`, bx, by - 8);
+    }
+  }
+
   function updateDashboardMetrics(rawText) {
     const text = stripAnsi(rawText);
     const lines = text.split('\n');
@@ -79,14 +307,24 @@
         currentEpoch = parseInt(lossMatch[1], 10);
         totalEpochs = parseInt(lossMatch[2], 10) || totalEpochs;
         const gpuMem = lossMatch[3];
-        const boxLoss = lossMatch[4];
-        const segLoss = lossMatch[5];
-        const clsLoss = lossMatch[6];
+        const boxLoss = parseFloat(lossMatch[4]);
+        const segLoss = parseFloat(lossMatch[5]);
+        const clsLoss = parseFloat(lossMatch[6]);
 
         if ($('metricGpuMem')) $('metricGpuMem').textContent = gpuMem;
-        if ($('metricBoxLoss')) $('metricBoxLoss').textContent = parseFloat(boxLoss).toFixed(3);
-        if ($('metricSegLoss')) $('metricSegLoss').textContent = parseFloat(segLoss).toFixed(3);
-        if ($('metricClsLoss')) $('metricClsLoss').textContent = parseFloat(clsLoss).toFixed(3);
+        if ($('metricBoxLoss')) $('metricBoxLoss').textContent = boxLoss.toFixed(3);
+        if ($('metricSegLoss')) $('metricSegLoss').textContent = segLoss.toFixed(3);
+        if ($('metricClsLoss')) $('metricClsLoss').textContent = clsLoss.toFixed(3);
+
+        let item = trainHistory.find((h) => h.epoch === currentEpoch);
+        if (!item) {
+          item = { epoch: currentEpoch };
+          trainHistory.push(item);
+        }
+        item.boxLoss = boxLoss;
+        item.segLoss = segLoss;
+        item.clsLoss = clsLoss;
+        drawLossChart();
       }
 
       // 2. Batch & Speed line: "90% ━━━━━━━━━━╸─ 19/21 1.8s/it" or "19/21 1.8s/it"
@@ -113,10 +351,19 @@
         if ($('metricBoxMap')) $('metricBoxMap').textContent = `${(boxMap50 * 100).toFixed(1)}%`;
         if ($('metricMaskMap')) $('metricMaskMap').textContent = `${(maskMap50 * 100).toFixed(1)}%`;
 
+        let item = trainHistory.find((h) => h.epoch === currentEpoch);
+        if (!item) {
+          item = { epoch: currentEpoch };
+          trainHistory.push(item);
+        }
+        item.boxMap = boxMap50;
+        item.maskMap = maskMap50;
+
         if (maskMap50 > bestMaskMap) {
           bestMaskMap = maskMap50;
           bestEpoch = currentEpoch;
           stagnantEpochs = 0;
+          trainHistory.forEach((h) => (h.isBest = h.epoch === bestEpoch));
           if ($('metricBestMap')) {
             $('metricBestMap').textContent = `${(bestMaskMap * 100).toFixed(1)}% (ep${bestEpoch})`;
           }
@@ -141,6 +388,7 @@
             }
           }
         }
+        drawMapChart();
       }
     }
 
@@ -259,6 +507,7 @@
     bestMaskMap = 0;
     bestEpoch = 0;
     stagnantEpochs = 0;
+    trainHistory = [];
 
     $('trainStart').disabled = true;
     $('trainCancel').disabled = false;
@@ -287,6 +536,8 @@
     }
     $('metricGpuMem').textContent = '-';
 
+    drawLossChart();
+    drawMapChart();
     startTimer();
 
     // If preset base weight is not installed yet, auto-download it seamlessly!
@@ -364,6 +615,14 @@
   window.initTrain = (m) => {
     meta = m;
     checkPython();
+
+    drawLossChart();
+    drawMapChart();
+
+    window.addEventListener('resize', () => {
+      drawLossChart();
+      drawMapChart();
+    });
 
     $('trainDataset').onchange = refreshDataset;
     $('trainDataset').oninput = refreshDataset;
@@ -454,6 +713,10 @@
     };
   };
 
+  window.drawTrainCharts = () => {
+    drawLossChart();
+    drawMapChart();
+  };
   window.trainIsRunning = () => running;
 })();
 
