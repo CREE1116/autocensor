@@ -87,6 +87,33 @@ from ultralytics import YOLO
 cfg = json.loads(Path(sys.argv[1]).read_text())
 patience = int(cfg.get("patience", 25))
 model = YOLO(cfg["base"])
+
+if patience > 0:
+    state = {"best": -1.0, "best_epoch": 0, "stagnant": 0}
+
+    def on_fit_epoch_end(trainer):
+        if not trainer.metrics:
+            return
+        m = trainer.metrics.get("metrics/mAP50(M)")
+        if m is None:
+            m = trainer.metrics.get("metrics/mAP50(B)")
+        if m is None:
+            m = getattr(trainer, "fitness", 0.0)
+
+        if m is not None:
+            val = float(m)
+            if val > state["best"] + 1e-4:
+                state["best"] = val
+                state["best_epoch"] = trainer.epoch + 1
+                state["stagnant"] = 0
+            else:
+                state["stagnant"] += 1
+                if state["stagnant"] >= patience:
+                    print(f"\\nEarlyStopping: {patience}에폭 동안 마스크 정밀도(Mask mAP50) 개선 없음 -> 조기 종료 발동! (최고 성능: {state['best']*100:.1f}%, Epoch {state['best_epoch']})\\n", flush=True)
+                    trainer.stop = True
+
+    model.add_callback("on_fit_epoch_end", on_fit_epoch_end)
+
 model.train(
     data=cfg["data"],
     epochs=cfg["epochs"],
@@ -102,8 +129,12 @@ model.train(
     plots=False,
 )
 
-best = Path(cfg["project"]) / cfg["name"] / "weights" / "best.pt"
-trained = YOLO(str(best))
+weights_dir = Path(cfg["project"]) / cfg["name"] / "weights"
+best_pt = weights_dir / "best.pt"
+last_pt = weights_dir / "last.pt"
+target_pt = best_pt if best_pt.exists() else last_pt
+
+trained = YOLO(str(target_pt))
 onnx = trained.export(format="onnx", imgsz=cfg["imgsz"], opset=12, dynamic=False, simplify=False)
 print("AUTOCENSOR_ONNX::" + str(onnx), flush=True)
 print("AUTOCENSOR_NAMES::" + json.dumps(trained.names, ensure_ascii=False), flush=True)
